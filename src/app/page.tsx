@@ -51,12 +51,16 @@ export default function Home() {
         body: JSON.stringify({ code: inputCode }),
       });
 
+      const data = await response.json().catch(() => null);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to beautify code");
+        throw new Error(data?.error || "Failed to beautify code");
       }
 
-      const data = await response.json();
+      if (!data?.result) {
+        throw new Error("Invalid response from server");
+      }
+
       setOutputCode(data.result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");

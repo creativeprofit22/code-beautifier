@@ -4,7 +4,23 @@ import { spawn } from "child_process";
 const MAX_CODE_SIZE = 100 * 1024; // 100KB limit
 const TIMEOUT_MS = 120 * 1000; // 2 minute timeout
 
-const BEAUTIFY_PROMPT = `Beautify this JavaScript code. Rename obfuscated variables (like a, b, c, _0x123) to meaningful names based on their usage context. Add brief explanatory comments for complex logic. Return ONLY the beautified code, no explanations or markdown.`;
+const BEAUTIFY_PROMPT = `You are a JavaScript code beautifier. Your ONLY job is to output beautified code.
+
+RULES:
+1. Output ONLY valid JavaScript code - no markdown, no explanations, no questions
+2. Rename obfuscated variables (a, b, _0x123) to meaningful names
+3. Add brief comments for complex logic
+4. Preserve all functionality
+
+CRITICAL: Your response must start with code and contain ONLY code. Never ask questions or add explanations.`;
+
+function stripMarkdownFences(output: string): string {
+  // Extract code from markdown fences, even if surrounded by explanatory text
+  // Handles cases with or without newline after opening fence
+  const fencePattern = /```(?:javascript|js|typescript|ts)?[ \t]*\n?([\s\S]*?)```/;
+  const match = output.match(fencePattern);
+  return match ? match[1].trim() : output.trim();
+}
 
 function runClaudeCommand(prompt: string, input: string, timeout: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -14,12 +30,18 @@ function runClaudeCommand(prompt: string, input: string, timeout: number): Promi
 
     let stdout = "";
     let stderr = "";
-    let killed = false;
+    let settled = false;
+
+    const settle = <T>(fn: (value: T) => void, value: T) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      fn(value);
+    };
 
     const timeoutId = setTimeout(() => {
-      killed = true;
       child.kill("SIGTERM");
-      reject(new Error("Request timed out - code may be too complex"));
+      settle(reject, new Error("Request timed out - code may be too complex"));
     }, timeout);
 
     child.stdout.on("data", (data) => {
@@ -31,18 +53,15 @@ function runClaudeCommand(prompt: string, input: string, timeout: number): Promi
     });
 
     child.on("close", (exitCode) => {
-      clearTimeout(timeoutId);
-      if (killed) return;
       if (exitCode === 0) {
-        resolve(stdout.trim());
+        settle(resolve, stdout.trim());
       } else {
-        reject(new Error(stderr || `Process exited with code ${exitCode}`));
+        settle(reject, new Error(stderr || `Process exited with code ${exitCode}`));
       }
     });
 
     child.on("error", (err) => {
-      clearTimeout(timeoutId);
-      reject(err);
+      settle(reject, err);
     });
 
     child.stdin.write(input);
@@ -65,7 +84,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await runClaudeCommand(BEAUTIFY_PROMPT, code, TIMEOUT_MS);
+    const rawResult = await runClaudeCommand(BEAUTIFY_PROMPT, code, TIMEOUT_MS);
+    const result = stripMarkdownFences(rawResult);
 
     return NextResponse.json({ result });
   } catch (error) {
