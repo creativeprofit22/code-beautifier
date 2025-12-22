@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Detect and parse inline source map
-    const sourceMapResult = await processCodeWithSourceMap(code);
+    // Detect and parse inline source map (errors handled internally, never throws)
+    const sourceMapResult = processCodeWithSourceMap(code);
 
     // Build prompt with variable hints if available
     const prompt = getBeautifyPrompt(sourceMapResult.variableHints);
@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       result,
       sourceMapDetected: sourceMapResult.hasSourceMap,
+      originalSources: sourceMapResult.originalSources,
       externalSourceMapUrl: sourceMapResult.externalSourceMapUrl,
     });
   } catch (error) {

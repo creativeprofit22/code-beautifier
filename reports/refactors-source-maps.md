@@ -7,32 +7,26 @@ Source: reports/bugs-source-maps.md
 ## Scope
 Files analyzed:
 - src/lib/source-map.ts
-- src/lib/prompts.ts
 - src/app/api/beautify/route.ts
-- src/app/page.tsx
 
-## High Priority (Tech Debt / DRY) ✅ COMPLETE
+## High Priority (Tech Debt / DRY)
 | # | Location | Issue | Suggested Fix | Effort | Status |
 |---|----------|-------|---------------|--------|--------|
-| 1 | page.tsx:351-389 | `handleBeautify` duplicates fetch/error logic that `apiCall` already abstracts | Refactor to use `apiCall` helper, extend it to return full response object | S | ✅ |
-| 2 | source-map.ts:99-102 | Manual Map→Object conversion duplicates what `Object.fromEntries()` does | Replace loop with `Object.fromEntries(info.variableNames)` | S | ✅ |
+| 1 | source-map.ts:98 | `processCodeWithSourceMap` is async but contains no await - all called functions are sync | Remove async/Promise wrapper, return `SourceMapResult` directly | S | ✅ Done |
 
-## Medium Priority (Code Clarity) ✅ COMPLETE
+## Medium Priority (Code Clarity)
 | # | Location | Issue | Suggested Fix | Effort | Status |
 |---|----------|-------|---------------|--------|--------|
-| 1 | page.tsx:199-212 | Source map badge rendering logic inline in OutputPanel is verbose | Extract to `SourceMapBadge` component for consistency with other small components | S | ✅ |
-| 2 | source-map.ts:3-13 | `SourceMapInfo` interface is only used internally but exported | Make `SourceMapInfo` non-exported (remove `export`) since only `SourceMapResult` is public API | S | ✅ |
-| 3 | page.tsx:340-349 | 9 useState calls in Home component getting unwieldy | Consider grouping related state into a reducer or custom hook (e.g., `useBeautifyState`) | M | ✅ |
+| 1 | source-map.ts:119-123 | Loop with index access and null check could be cleaner | Use `map`/`filter` for pairing sources with content | S | ✅ Done |
 
-## Low Priority (Nice-to-Have) ✅ COMPLETE
+## Low Priority (Nice-to-Have)
 | # | Location | Issue | Suggested Fix | Effort | Status |
 |---|----------|-------|---------------|--------|--------|
-| 1 | page.tsx:101-107 | `actionButtonStyles` array joined to string at module level | Use template literal directly for simpler code | S | ✅ |
-| 2 | route.ts:9-15 | `stripMarkdownFences` is beautify-specific utility in route file | Move to a shared utils file if other routes need similar parsing | S | ✅ |
-| 3 | prompts.ts:21-23 | Variable mapping format string could be a constant for consistency | Extract format string to constant if reused elsewhere | S | ✅ |
+| 1 | source-map.ts:3-7 | `SourceMapInfo` interface only used internally | Consider documenting internal-only status with comment | S | ✅ Done |
+| 2 | route.ts:33-38 | Try-catch around `processCodeWithSourceMap` redundant if function handles errors internally | Verify error handling covers all cases, potentially simplify | S | ✅ Done |
 
 ## Summary
-- High: 2 refactors (2 Small, 0 Medium, 0 Large) ✅
-- Medium: 3 refactors (2 Small, 1 Medium, 0 Large) ✅
-- Low: 3 refactors (3 Small, 0 Medium, 0 Large) ✅
-- Total: 8 refactors - **ALL COMPLETE**
+- High: 0 remaining (1 completed)
+- Medium: 0 remaining (1 completed)
+- Low: 0 remaining (2 completed)
+- Total: 0 remaining, 4 completed
