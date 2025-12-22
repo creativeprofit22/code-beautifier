@@ -3,24 +3,21 @@
 Local web app that beautifies/deobfuscates JavaScript using Claude CLI.
 
 ## Current Focus
-Feature: Explain feature
-Files: src/app/page.tsx, src/app/api/explain/route.ts
+Feature: Source Maps
+Files: src/lib/source-map.ts, src/lib/prompts.ts, src/app/api/beautify/route.ts, src/app/page.tsx
 
 ## Pipeline State
 Phase: refactoring
-Feature: Explain feature
-Tier: low
+Feature: Source Maps
+Tier: medium
 Tier-Status: pending
 Reports:
-  - bugs: reports/bugs-explain-feature.md
-  - refactors: reports/refactors-explain-feature.md
+  - bugs: reports/bugs-source-maps.md
+  - refactors: reports/refactors-source-maps.md
 
 ## Last Session (2025-12-22)
-- Completed all 3 medium priority refactors:
-  - Extracted `ActionButton` component with loading/active state support
-  - Extracted `OutputPanel` component (reduced Home component by ~50 lines)
-  - Extracted `apiCall<T>()` utility for common fetch logic
-- Build passes
-
-## Next Steps
-1. Execute low priority refactors (2 items)
+- Completed 2 high priority refactors:
+  1. Extended `apiCall` to support full response objects (`resultField: string | null`)
+  2. Refactored `handleBeautify` to use `apiCall` helper (page.tsx:354-394)
+  3. Replaced Map→Object loop with `Object.fromEntries()` (source-map.ts:99)
+- Build and type check pass
