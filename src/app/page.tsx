@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, ReactNode } from "react";
-import { Copy, Check, Sparkles, Loader2, X } from "lucide-react";
+import { Copy, Check, Sparkles, Loader2, X, MessageSquareText } from "lucide-react";
 import { Highlight, themes } from "prism-react-renderer";
+import ReactMarkdown from "react-markdown";
 import { useClipboard } from "@/hooks/useClipboard";
+
+type OutputTab = "code" | "explanation";
 
 const PANEL_HEIGHT = "h-[calc(100vh-220px)]";
 
@@ -93,10 +96,45 @@ function OutputContent({ isLoading, outputCode }: OutputContentProps) {
   );
 }
 
+interface ExplanationContentProps {
+  isLoading: boolean;
+  explanation: string;
+}
+
+function ExplanationContent({ isLoading, explanation }: ExplanationContentProps) {
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-zinc-500">
+          <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+          <span className="text-sm">Analyzing code...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (explanation) {
+    return (
+      <div className="prose prose-invert prose-sm max-w-none overflow-auto p-4 prose-headings:text-zinc-100 prose-p:text-zinc-300 prose-strong:text-zinc-100 prose-code:text-violet-400 prose-a:text-violet-400 prose-li:text-zinc-300">
+        <ReactMarkdown>{explanation}</ReactMarkdown>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full items-center justify-center text-zinc-600">
+      <span className="text-sm">Click &quot;Explain&quot; to analyze the code</span>
+    </div>
+  );
+}
+
 export default function Home() {
   const [inputCode, setInputCode] = useState("");
   const [outputCode, setOutputCode] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [activeTab, setActiveTab] = useState<OutputTab>("code");
   const [isLoading, setIsLoading] = useState(false);
+  const [isExplaining, setIsExplaining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { copied, copy } = useClipboard({ onError: setError });
 
@@ -109,6 +147,8 @@ export default function Home() {
     setIsLoading(true);
     setError(null);
     setOutputCode("");
+    setExplanation("");
+    setActiveTab("code");
 
     try {
       const response = await fetch("/api/beautify", {
@@ -139,6 +179,42 @@ export default function Home() {
 
   const handleCopy = () => {
     if (outputCode) copy(outputCode);
+  };
+
+  const handleExplain = async () => {
+    if (!outputCode) return;
+
+    setIsExplaining(true);
+    setExplanation("");
+    setActiveTab("explanation");
+    setError(null);
+
+    try {
+      const response = await fetch("/api/explain", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ code: outputCode }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to explain code");
+      }
+
+      if (!data?.explanation) {
+        throw new Error("Invalid response from server");
+      }
+
+      setExplanation(data.explanation);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      setActiveTab("code");
+    } finally {
+      setIsExplaining(false);
+    }
   };
 
   return (
@@ -177,32 +253,78 @@ export default function Home() {
             </CodePanel>
 
             {/* Output Panel */}
-            <CodePanel
-              title="Output"
-              headerRight={
-                <button
-                  onClick={handleCopy}
-                  disabled={!outputCode}
-                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-zinc-400"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="h-3.5 w-3.5 text-green-500" />
-                      <span className="text-green-500">Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5" />
-                      <span>Copy</span>
-                    </>
-                  )}
-                </button>
-              }
-            >
-              <div className="relative flex-1 overflow-auto">
-                <OutputContent isLoading={isLoading} outputCode={outputCode} />
+            <div className="flex flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
+              <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
+                {/* Tabs */}
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setActiveTab("code")}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      activeTab === "code"
+                        ? "bg-zinc-800 text-zinc-100"
+                        : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+                    }`}
+                  >
+                    Code
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("explanation")}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      activeTab === "explanation"
+                        ? "bg-zinc-800 text-zinc-100"
+                        : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+                    }`}
+                  >
+                    Explanation
+                  </button>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExplain}
+                    disabled={!outputCode || isLoading || isExplaining}
+                    className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-zinc-400"
+                  >
+                    {isExplaining ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Analyzing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <MessageSquareText className="h-3.5 w-3.5" />
+                        <span>Explain</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleCopy}
+                    disabled={!outputCode}
+                    className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-zinc-400"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-green-500" />
+                        <span className="text-green-500">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-            </CodePanel>
+              <div className="relative flex-1 overflow-auto">
+                {activeTab === "code" ? (
+                  <OutputContent isLoading={isLoading} outputCode={outputCode} />
+                ) : (
+                  <ExplanationContent isLoading={isExplaining} explanation={explanation} />
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Beautify Button */}
