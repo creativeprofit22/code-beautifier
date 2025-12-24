@@ -18,8 +18,7 @@ A Next.js application for code formatting and syntax highlighting, with an integ
 - Node.js 18+
 - npm, yarn, pnpm, or bun
 - PostgreSQL database
-- [Claude Code CLI](https://github.com/anthropics/claude-code) (optional, for AI chat)
-- [Interceptor Toolkit CLI](https://github.com/creativeprofit22/interceptor-toolkit) (optional, for traffic capture)
+- [Claude Code CLI](https://github.com/anthropics/claude-code) (optional, for AI chat assistant)
 
 ### Installation
 
@@ -121,34 +120,20 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | `npm run db:push` | Push schema to database |
 | `npm run db:migrate` | Run database migrations |
 
-## Interceptor Toolkit
+## Interceptor Toolkit (Built-in)
 
-The Interceptor Toolkit provides HTTP traffic analysis capabilities:
+The Interceptor Toolkit is fully integrated - no separate installation needed.
 
 ### Features
 
 - **Traffic Capture** - Capture HTTP requests/responses via proxy
 - **Security Scanning** - Find vulnerabilities (OWASP Top 10)
 - **OpenAPI Generation** - Generate API specs from traffic
-- **AI Assistant** - Natural language interface for all operations
+- **AI Assistant** - Natural language interface powered by Claude
 
-### Optional: Install Interceptor CLI
+### Optional: Claude Code CLI
 
-For full functionality, install the Interceptor Toolkit CLI:
-
-```bash
-# Install from GitHub
-pip install git+https://github.com/creativeprofit22/interceptor-toolkit.git
-
-# Or clone and install locally
-git clone https://github.com/creativeprofit22/interceptor-toolkit.git
-cd interceptor-toolkit
-pip install -e .
-```
-
-### Optional: Install Claude Code CLI
-
-For AI chat functionality:
+For AI chat functionality, install Claude Code:
 
 ```bash
 npm install -g @anthropic-ai/claude-code
@@ -157,13 +142,12 @@ npm install -g @anthropic-ai/claude-code
 ### Using the Interceptor
 
 1. Navigate to `/interceptor` in the app
-2. Use the AI chat to:
-   - List capture sessions
-   - Run security scans
-   - Generate OpenAPI specs
-   - Analyze traffic patterns
+2. View and manage capture sessions
+3. Run security scans on captured traffic
+4. Generate OpenAPI specs from your API calls
+5. Use the AI chat assistant for guided analysis
 
-Example commands:
+Example chat commands:
 - "List my sessions"
 - "Scan the latest session for security issues"
 - "Generate an OpenAPI spec from session abc123"
