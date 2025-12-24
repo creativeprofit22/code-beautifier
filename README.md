@@ -1,36 +1,212 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Code Beautifier
 
-## Getting Started
+A Next.js application for code formatting and syntax highlighting, with an integrated AI-powered **Interceptor Toolkit** for HTTP traffic capture, API analysis, and security scanning.
 
-First, run the development server:
+## Features
 
+- **Code Beautifier** - Syntax highlighting and formatting for multiple languages
+- **Interceptor Toolkit** - Capture and analyze HTTP traffic
+  - AI Chat Assistant (powered by Claude)
+  - Security vulnerability scanning
+  - OpenAPI spec generation
+  - Traffic analysis and pattern detection
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- npm, yarn, pnpm, or bun
+- PostgreSQL database
+- [Claude Code CLI](https://github.com/anthropics/claude-code) (optional, for AI chat)
+- [Interceptor Toolkit CLI](https://github.com/creativeprofit22/interceptor-toolkit) (optional, for traffic capture)
+
+### Installation
+
+**Option 1: One-command setup**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/creativeprofit22/code-beautifier.git
+cd code-beautifier
+npm run setup
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Option 2: Manual setup**
+```bash
+# Clone the repository
+git clone https://github.com/creativeprofit22/code-beautifier.git
+cd code-beautifier
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# Install dependencies
+npm install
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Copy environment template
+cp .env.example .env
 
-## Learn More
+# Generate Prisma client
+npx prisma generate
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Configuration
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Edit `.env` with your values:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# Database (required)
+DATABASE_URL="postgresql://user:password@localhost:5432/code_beautifier"
 
-## Deploy on Vercel
+# Auth.js secret (required) - generate with: npx auth secret
+AUTH_SECRET="your-generated-secret"
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# GitHub OAuth (required for authentication)
+AUTH_GITHUB_ID="your-github-client-id"
+AUTH_GITHUB_SECRET="your-github-client-secret"
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# App URL (optional)
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```
+
+#### Setting up GitHub OAuth
+
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Click "New OAuth App"
+3. Fill in:
+   - **Application name**: Code Beautifier
+   - **Homepage URL**: `http://localhost:3000`
+   - **Authorization callback URL**: `http://localhost:3000/api/auth/callback/github`
+4. Copy the Client ID and Client Secret to your `.env`
+
+### Database Setup
+
+```bash
+# Push schema to database
+npm run db:push
+
+# Or run migrations (for production)
+npm run db:migrate
+```
+
+### Running the App
+
+```bash
+# Development (with Turbopack - faster)
+npm run dev
+
+# Development (standard Next.js)
+npm run dev:standard
+
+# Production build
+npm run build
+npm start
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run setup` | One-command installation and setup |
+| `npm run dev` | Start dev server with Turbopack |
+| `npm run dev:standard` | Start dev server (standard) |
+| `npm run build` | Production build |
+| `npm start` | Start production server |
+| `npm run lint` | Run ESLint |
+| `npm run lint:fix` | Fix ESLint errors |
+| `npm run format` | Format with Prettier |
+| `npm run typecheck` | TypeScript type checking |
+| `npm test` | Run tests with Vitest |
+| `npm run test:coverage` | Run tests with coverage |
+| `npm run test:e2e` | Run Playwright E2E tests |
+| `npm run db:studio` | Open Prisma Studio |
+| `npm run db:push` | Push schema to database |
+| `npm run db:migrate` | Run database migrations |
+
+## Interceptor Toolkit
+
+The Interceptor Toolkit provides HTTP traffic analysis capabilities:
+
+### Features
+
+- **Traffic Capture** - Capture HTTP requests/responses via proxy
+- **Security Scanning** - Find vulnerabilities (OWASP Top 10)
+- **OpenAPI Generation** - Generate API specs from traffic
+- **AI Assistant** - Natural language interface for all operations
+
+### Optional: Install Interceptor CLI
+
+For full functionality, install the Interceptor Toolkit CLI:
+
+```bash
+# Install from GitHub
+pip install git+https://github.com/creativeprofit22/interceptor-toolkit.git
+
+# Or clone and install locally
+git clone https://github.com/creativeprofit22/interceptor-toolkit.git
+cd interceptor-toolkit
+pip install -e .
+```
+
+### Optional: Install Claude Code CLI
+
+For AI chat functionality:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+### Using the Interceptor
+
+1. Navigate to `/interceptor` in the app
+2. Use the AI chat to:
+   - List capture sessions
+   - Run security scans
+   - Generate OpenAPI specs
+   - Analyze traffic patterns
+
+Example commands:
+- "List my sessions"
+- "Scan the latest session for security issues"
+- "Generate an OpenAPI spec from session abc123"
+
+## Project Structure
+
+```
+code-beautifier/
+├── src/
+│   ├── app/                 # Next.js App Router pages
+│   │   ├── api/             # API routes
+│   │   └── interceptor/     # Interceptor Toolkit UI
+│   ├── features/            # Feature modules
+│   │   └── interceptor/     # Interceptor components
+│   ├── lib/                 # Shared utilities
+│   │   ├── chat-agent.ts    # Claude chat integration
+│   │   ├── interceptor.ts   # Interceptor CLI wrapper
+│   │   └── theme.ts         # Theme constants
+│   └── components/          # Shared UI components
+├── prisma/                  # Database schema
+├── public/                  # Static assets
+└── reports/                 # Generated reports
+```
+
+## Tech Stack
+
+- **Framework**: Next.js 16 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS v4
+- **Database**: PostgreSQL with Prisma ORM
+- **Auth**: Auth.js (NextAuth v5)
+- **API**: tRPC
+- **Testing**: Vitest + Playwright
+- **Linting**: ESLint + Prettier
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit changes: `git commit -m "Add my feature"`
+4. Push to branch: `git push origin feature/my-feature`
+5. Open a Pull Request
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.

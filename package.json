@@ -1,11 +1,30 @@
 {
-  "name": "nextjs-boiler-plate",
-  "version": "0.1.0",
+  "name": "code-beautifier",
+  "version": "1.0.0",
+  "description": "A Next.js code beautifier with syntax highlighting, formatting, and an AI-powered Interceptor Toolkit for API traffic analysis",
+  "author": "creativeprofit22",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/creativeprofit22/code-beautifier.git"
+  },
+  "keywords": [
+    "code-beautifier",
+    "syntax-highlighting",
+    "interceptor",
+    "api-analysis",
+    "security-scanner",
+    "openapi-generator",
+    "nextjs",
+    "react"
+  ],
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:standard": "next dev",
     "build": "next build",
     "start": "next start",
+    "setup": "npm install && cp -n .env.example .env 2>/dev/null || true && npx prisma generate && echo '✅ Setup complete! Edit .env with your values, then run: npm run dev'",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
