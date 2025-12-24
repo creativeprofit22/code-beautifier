@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Sparkles, Download } from "lucide-react";
 import { ChatInput, MessageBubble, TypingIndicator, ChatMessage } from "./chat";
+import { ConversationMessage } from "@/lib/chat-agent";
+import { downloadAsJson } from "@/lib/download";
 import "./chat/styles.css";
 
 const ACCENT_COLOR = "#8b5cf6"; // violet-500
@@ -20,11 +22,6 @@ const WELCOME_MESSAGE: ChatMessage = {
 What would you like to do?`,
   timestamp: new Date(),
 };
-
-interface ConversationMessage {
-  role: "user" | "assistant";
-  content: string;
-}
 
 export function InterceptorChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
@@ -105,15 +102,7 @@ export function InterceptorChat() {
         timestamp: m.timestamp.toISOString(),
       })),
     };
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `interceptor-chat-${new Date().toISOString().split("T")[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadAsJson(exportData, `interceptor-chat-${new Date().toISOString().split("T")[0]}.json`);
   };
 
   return (
