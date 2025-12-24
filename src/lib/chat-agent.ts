@@ -1,9 +1,14 @@
 import { spawn } from "child_process";
+import { INTERCEPTOR_SYSTEM_PROMPT } from "./chat-prompts";
 
 /**
  * Chat Agent - Uses Claude Code CLI to power an AI assistant
  * for the Interceptor Toolkit
  */
+
+// Configuration constants
+const MAX_HISTORY_MESSAGES = 6;
+const CLAUDE_TIMEOUT_MS = 60000;
 
 export interface ChatAction {
   type: "listSessions" | "showSession" | "startCapture" | "runScan" | "generateOpenAPI" | "runMock" | "analyze";
@@ -21,61 +26,49 @@ export interface ConversationMessage {
   content: string;
 }
 
-const SYSTEM_PROMPT = `You are an AI assistant for the Interceptor Toolkit, a network traffic capture and API analysis tool.
+/**
+ * Build the full prompt with system instructions and conversation history
+ */
+function buildPrompt(conversationHistory: ConversationMessage[], userMessage: string): string {
+  let prompt = INTERCEPTOR_SYSTEM_PROMPT + "\n\n";
 
-## Available Actions
-You can help users by executing these actions (return them in your JSON response):
+  if (conversationHistory.length > 0) {
+    prompt += "## Conversation History\n";
+    for (const msg of conversationHistory.slice(-MAX_HISTORY_MESSAGES)) {
+      prompt += `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}\n`;
+    }
+    prompt += "\n";
+  }
 
-1. **listSessions** - List all capture sessions
-   - No params needed
-
-2. **showSession** - Show details of a session
-   - params: { sessionId: string } (use "latest" for most recent)
-
-3. **startCapture** - Guide user to start capturing traffic
-   - params: { port: number, mode: "passive" | "active" }
-   - NOTE: Capture runs in terminal, so provide the command for the user to run
-
-4. **runScan** - Run security vulnerability scan on a session
-   - params: { sessionId: string, severity?: "low" | "medium" | "high" | "critical" }
-
-5. **generateOpenAPI** - Generate OpenAPI spec from captured traffic
-   - params: { sessionId: string, format?: "yaml" | "json", includeExamples?: boolean }
-
-6. **runMock** - Guide user to run mock server
-   - params: { sessionId: string, port: number }
-   - NOTE: Mock server runs in terminal, provide the command
-
-7. **analyze** - Analyze traffic patterns
-   - params: { sessionId: string, task: "summarize" | "endpoints" | "auth" }
-
-## Response Format
-Always respond with valid JSON:
-{
-  "message": "Your helpful response to the user",
-  "action": { "type": "actionName", "params": { ... } }  // optional
+  prompt += `## Current Request\nUser: ${userMessage}\n\nRespond with JSON only:`;
+  return prompt;
 }
 
-## Guidelines
-- Be concise and helpful
-- If user wants to capture traffic, explain they need to run the capture command in a terminal
-- For actions that can be executed via the API, include the action in your response
-- If no action is needed (just answering a question), omit the action field
-- If sessions don't exist yet, guide the user to start a capture first
+/**
+ * Extract JSON from Claude's response, handling markdown code blocks
+ */
+function extractJsonFromResponse(stdout: string): ChatResponse {
+  let jsonStr = stdout.trim();
 
-## Example Responses
+  // Remove markdown code blocks if present
+  const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (jsonMatch) {
+    jsonStr = jsonMatch[1];
+  }
 
-User: "list my sessions"
-{"message": "Here are your capture sessions:", "action": {"type": "listSessions"}}
+  // Try to find JSON object in response
+  const jsonStart = jsonStr.indexOf("{");
+  const jsonEnd = jsonStr.lastIndexOf("}");
+  if (jsonStart !== -1 && jsonEnd !== -1) {
+    jsonStr = jsonStr.slice(jsonStart, jsonEnd + 1);
+  }
 
-User: "scan the latest session for security issues"
-{"message": "Running a security scan on your latest session...", "action": {"type": "runScan", "params": {"sessionId": "latest"}}}
-
-User: "how do I start capturing?"
-{"message": "To start capturing traffic, run this command in your terminal:\\n\\n\`interceptor capture --mode passive --port 8080\`\\n\\nThis starts a proxy on port 8080. Configure your app/browser to use localhost:8080 as a proxy, then make requests. Press Ctrl+C to stop and save the session."}
-
-User: "what is this tool?"
-{"message": "The Interceptor Toolkit helps you capture HTTP traffic, analyze APIs, find security vulnerabilities, and generate OpenAPI specs. Start by capturing some traffic, then you can scan it or generate documentation."}`;
+  const parsed = JSON.parse(jsonStr);
+  return {
+    message: parsed.message || "I processed your request.",
+    action: parsed.action,
+  };
+}
 
 /**
  * Check if Claude Code CLI is available (cross-platform)
@@ -104,18 +97,7 @@ export async function sendChatMessage(
     };
   }
 
-  // Build the full prompt with conversation history
-  let prompt = SYSTEM_PROMPT + "\n\n";
-
-  if (conversationHistory.length > 0) {
-    prompt += "## Conversation History\n";
-    for (const msg of conversationHistory.slice(-6)) { // Keep last 6 messages for context
-      prompt += `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}\n`;
-    }
-    prompt += "\n";
-  }
-
-  prompt += `## Current Request\nUser: ${userMessage}\n\nRespond with JSON only:`;
+  const prompt = buildPrompt(conversationHistory, userMessage);
 
   return new Promise((resolve) => {
     let resolved = false;
@@ -154,27 +136,7 @@ export async function sendChatMessage(
 
       // Try to parse JSON from response
       try {
-        // Claude might wrap response in markdown code blocks
-        let jsonStr = stdout.trim();
-
-        // Remove markdown code blocks if present
-        const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-          jsonStr = jsonMatch[1];
-        }
-
-        // Try to find JSON object in response
-        const jsonStart = jsonStr.indexOf("{");
-        const jsonEnd = jsonStr.lastIndexOf("}");
-        if (jsonStart !== -1 && jsonEnd !== -1) {
-          jsonStr = jsonStr.slice(jsonStart, jsonEnd + 1);
-        }
-
-        const parsed = JSON.parse(jsonStr);
-        safeResolve({
-          message: parsed.message || "I processed your request.",
-          action: parsed.action,
-        });
+        safeResolve(extractJsonFromResponse(stdout));
       } catch {
         // If JSON parsing fails, return the raw response as message
         safeResolve({
@@ -190,7 +152,7 @@ export async function sendChatMessage(
       });
     });
 
-    // Timeout after 60 seconds
+    // Timeout after configured duration
     setTimeout(() => {
       if (resolved) return;
       claudeProcess.kill("SIGTERM");
@@ -198,6 +160,6 @@ export async function sendChatMessage(
         message: "Request timed out. Please try again.",
         error: "timeout",
       });
-    }, 60000);
+    }, CLAUDE_TIMEOUT_MS);
   });
 }

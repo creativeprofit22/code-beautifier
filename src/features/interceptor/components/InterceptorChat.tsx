@@ -5,9 +5,8 @@ import { Sparkles, Download } from "lucide-react";
 import { ChatInput, MessageBubble, TypingIndicator, ChatMessage } from "./chat";
 import { ConversationMessage } from "@/lib/chat-agent";
 import { downloadAsJson } from "@/lib/download";
+import { ACCENT_COLOR } from "@/lib/theme";
 import "./chat/styles.css";
-
-const ACCENT_COLOR = "#8b5cf6"; // violet-500
 
 const WELCOME_MESSAGE: ChatMessage = {
   id: "welcome",
