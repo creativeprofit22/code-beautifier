@@ -8,6 +8,13 @@ interface ChatRequest {
 }
 
 /**
+ * Extract session ID from action params, defaulting to "latest"
+ */
+function getSessionId(action: ChatAction): string {
+  return (action.params?.sessionId as string) || "latest";
+}
+
+/**
  * Execute an action returned by the chat agent
  */
 async function executeAction(action: ChatAction): Promise<{ success: boolean; data?: unknown; error?: string }> {
@@ -19,30 +26,26 @@ async function executeAction(action: ChatAction): Promise<{ success: boolean; da
       }
 
       case "showSession": {
-        const sessionId = (action.params?.sessionId as string) || "latest";
-        const result = await runInterceptorCommand(["sessions", "show", sessionId, "--json"]);
+        const result = await runInterceptorCommand(["sessions", "show", getSessionId(action), "--json"]);
         return { success: result.success, data: result.data, error: result.error };
       }
 
       case "runScan": {
-        const sessionId = (action.params?.sessionId as string) || "latest";
         const severity = action.params?.severity as string | undefined;
-        const result = await runSecurityScan(sessionId, { severity });
+        const result = await runSecurityScan(getSessionId(action), { severity });
         return { success: result.success, data: result.data, error: result.error };
       }
 
       case "generateOpenAPI": {
-        const sessionId = (action.params?.sessionId as string) || "latest";
         const format = (action.params?.format as "yaml" | "json") || "json";
         const includeExamples = action.params?.includeExamples as boolean | undefined;
-        const result = await generateOpenAPI(sessionId, { format, includeExamples });
+        const result = await generateOpenAPI(getSessionId(action), { format, includeExamples });
         return { success: result.success, data: result.data, error: result.error };
       }
 
       case "analyze": {
-        const sessionId = (action.params?.sessionId as string) || "latest";
         const task = (action.params?.task as string) || "summarize";
-        const result = await runInterceptorCommand(["analyze", "--session", sessionId, "--task", task, "--json"]);
+        const result = await runInterceptorCommand(["analyze", "--session", getSessionId(action), "--task", task, "--json"]);
         return { success: result.success, data: result.data, error: result.error };
       }
 

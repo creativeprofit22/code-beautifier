@@ -40,28 +40,45 @@ function getHostnameFromUrl(url: string): string {
   }
 }
 
-function SeverityIcon({ severity }: { severity: SeverityLevel }) {
-  const config = {
-    CRITICAL: { Icon: AlertCircle, className: "text-red-500" },
-    HIGH: { Icon: AlertTriangle, className: "text-orange-500" },
-    MEDIUM: { Icon: AlertTriangle, className: "text-yellow-500" },
-    LOW: { Icon: Info, className: "text-blue-500" },
-  };
+const SEVERITY_CONFIG = {
+  CRITICAL: {
+    Icon: AlertCircle,
+    iconClass: "text-red-500",
+    badgeClass: "border-red-500/30 bg-red-500/10 text-red-400",
+    groupBg: "bg-red-500/5",
+    groupBorder: "border-red-500/20",
+  },
+  HIGH: {
+    Icon: AlertTriangle,
+    iconClass: "text-orange-500",
+    badgeClass: "border-orange-500/30 bg-orange-500/10 text-orange-400",
+    groupBg: "bg-orange-500/5",
+    groupBorder: "border-orange-500/20",
+  },
+  MEDIUM: {
+    Icon: AlertTriangle,
+    iconClass: "text-yellow-500",
+    badgeClass: "border-yellow-500/30 bg-yellow-500/10 text-yellow-400",
+    groupBg: "bg-yellow-500/5",
+    groupBorder: "border-yellow-500/20",
+  },
+  LOW: {
+    Icon: Info,
+    iconClass: "text-blue-500",
+    badgeClass: "border-blue-500/30 bg-blue-500/10 text-blue-400",
+    groupBg: "bg-blue-500/5",
+    groupBorder: "border-blue-500/20",
+  },
+} as const;
 
-  const { Icon, className } = config[severity];
-  return <Icon className={`h-5 w-5 ${className}`} />;
+function SeverityIcon({ severity }: { severity: SeverityLevel }) {
+  const { Icon, iconClass } = SEVERITY_CONFIG[severity];
+  return <Icon className={`h-5 w-5 ${iconClass}`} />;
 }
 
 function SeverityBadge({ severity }: { severity: SeverityLevel }) {
-  const config = {
-    CRITICAL: "border-red-500/30 bg-red-500/10 text-red-400",
-    HIGH: "border-orange-500/30 bg-orange-500/10 text-orange-400",
-    MEDIUM: "border-yellow-500/30 bg-yellow-500/10 text-yellow-400",
-    LOW: "border-blue-500/30 bg-blue-500/10 text-blue-400",
-  };
-
   return (
-    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${config[severity]}`}>
+    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${SEVERITY_CONFIG[severity].badgeClass}`}>
       {severity}
     </span>
   );
@@ -176,17 +193,10 @@ function SeverityGroup({
 
   if (findings.length === 0) return null;
 
-  const config = {
-    CRITICAL: { bg: "bg-red-500/5", border: "border-red-500/20" },
-    HIGH: { bg: "bg-orange-500/5", border: "border-orange-500/20" },
-    MEDIUM: { bg: "bg-yellow-500/5", border: "border-yellow-500/20" },
-    LOW: { bg: "bg-blue-500/5", border: "border-blue-500/20" },
-  };
-
-  const { bg, border } = config[severity];
+  const { groupBg, groupBorder } = SEVERITY_CONFIG[severity];
 
   return (
-    <div className={`rounded-xl border ${border} ${bg}`}>
+    <div className={`rounded-xl border ${groupBorder} ${groupBg}`}>
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left"

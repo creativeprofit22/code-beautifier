@@ -16,15 +16,20 @@ Files:
 ## Pipeline State
 Phase: refactoring
 Feature: Interceptor Chat Assistant
-Tier: high
+Tier: low
 Tier-Status: pending
 Reports:
   - bugs: reports/bugs-interceptor-chat.md
   - refactors: reports/refactors-interceptor-chat.md
 
-## Last Session (2025-12-24)
-- Fixed all 6 bugs from bug report (2 high, 3 medium, 1 low)
-- Refactor hunt found 9 opportunities (2 high, 4 medium, 3 low)
+## Last Session (2025-12-23)
+- Completed medium priority refactors (4/4):
+  - Extracted `buildPrompt()` helper in chat-agent.ts
+  - Extracted `extractJsonFromResponse()` helper in chat-agent.ts
+  - Extracted `getSessionId(action)` helper in route.ts
+  - Consolidated `SEVERITY_CONFIG` in ScanResults.tsx
+- TypeScript verification passing
+- Updated refactor report with completed status
 
 ## Tech Stack
 Next.js 16.1, React 19, TypeScript 5, Tailwind 4, Prisma 7, tRPC 11
