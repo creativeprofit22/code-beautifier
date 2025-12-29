@@ -6,3 +6,4 @@ export { DecompiledViewer } from "./DecompiledViewer";
 export { NativeUploader } from "./NativeUploader";
 export { NativeAnalysisViewer } from "./NativeAnalysisViewer";
 export { StringsExtractor } from "./StringsExtractor";
+export { ManifestViewer } from "./ManifestViewer";

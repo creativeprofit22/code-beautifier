@@ -5,8 +5,7 @@ description: Run checks, commit with AI message, and push
 
 1. Run quality checks:
    ```bash
-   npm run lint
-   npm run typecheck
+   bun run typecheck && bun run lint
    ```
    Fix ALL errors before continuing.
 

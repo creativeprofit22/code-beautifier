@@ -45,18 +45,29 @@ export function StringsExtractor({ strings, stats, fileName }: StringsExtractorP
     };
   }, []);
 
-  // Clear copied indicator when category changes to prevent index collision
+  // Handle category change - clears copied indicator to prevent index collision
   // (index 5 in "dex" is different from index 5 in "native")
-  useEffect(() => {
+  const handleCategoryChange = useCallback((newCategory: StringCategory) => {
+    setCategory(newCategory);
     setCopiedIndex(null);
-  }, [category]);
+  }, []);
 
   const categories: CategoryTab[] = useMemo(
     () => [
       { id: "all", label: "All", icon: <FileText className="h-4 w-4" />, count: stats.total },
-      { id: "resources", label: "Resources", icon: <FileText className="h-4 w-4" />, count: stats.resourceCount },
+      {
+        id: "resources",
+        label: "Resources",
+        icon: <FileText className="h-4 w-4" />,
+        count: stats.resourceCount,
+      },
       { id: "dex", label: "DEX", icon: <Terminal className="h-4 w-4" />, count: stats.dexCount },
-      { id: "native", label: "Native", icon: <Cpu className="h-4 w-4" />, count: stats.nativeCount },
+      {
+        id: "native",
+        label: "Native",
+        icon: <Cpu className="h-4 w-4" />,
+        count: stats.nativeCount,
+      },
     ],
     [stats]
   );
@@ -124,13 +135,20 @@ export function StringsExtractor({ strings, stats, fileName }: StringsExtractorP
           </div>
           <div className="flex items-center gap-4 text-sm">
             <span className="text-zinc-400">
-              <span className="font-medium text-zinc-100">{stats.resourceCount.toLocaleString()}</span> resources
+              <span className="font-medium text-zinc-100">
+                {stats.resourceCount.toLocaleString()}
+              </span>{" "}
+              resources
             </span>
             <span className="text-zinc-400">
-              <span className="font-medium text-zinc-100">{stats.dexCount.toLocaleString()}</span> DEX
+              <span className="font-medium text-zinc-100">{stats.dexCount.toLocaleString()}</span>{" "}
+              DEX
             </span>
             <span className="text-zinc-400">
-              <span className="font-medium text-zinc-100">{stats.nativeCount.toLocaleString()}</span> native
+              <span className="font-medium text-zinc-100">
+                {stats.nativeCount.toLocaleString()}
+              </span>{" "}
+              native
             </span>
           </div>
         </div>
@@ -145,7 +163,7 @@ export function StringsExtractor({ strings, stats, fileName }: StringsExtractorP
             role="tab"
             aria-selected={category === cat.id}
             aria-controls="strings-panel"
-            onClick={() => setCategory(cat.id)}
+            onClick={() => handleCategoryChange(cat.id)}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               category === cat.id
                 ? "bg-violet-600 text-white"
@@ -168,7 +186,10 @@ export function StringsExtractor({ strings, stats, fileName }: StringsExtractorP
       {/* Search Input & Copy All */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
+          <Search
+            className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-500"
+            aria-hidden="true"
+          />
           <input
             type="text"
             id="strings-search"
@@ -176,14 +197,18 @@ export function StringsExtractor({ strings, stats, fileName }: StringsExtractorP
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search strings..."
             aria-label="Search extracted strings"
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 py-2 pl-10 pr-4 text-sm text-zinc-100 placeholder-zinc-500 transition-colors focus:border-violet-500 focus:outline-none"
+            className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 py-2 pr-4 pl-10 text-sm text-zinc-100 placeholder-zinc-500 transition-colors focus:border-violet-500 focus:outline-none"
           />
         </div>
         <button
           type="button"
           onClick={handleCopyAll}
           disabled={filteredStrings.length === 0}
-          aria-label={copiedAll ? "Copied to clipboard" : `Copy all ${filteredStrings.length} strings to clipboard`}
+          aria-label={
+            copiedAll
+              ? "Copied to clipboard"
+              : `Copy all ${filteredStrings.length} strings to clipboard`
+          }
           className="flex items-center gap-2 rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {copiedAll ? (
@@ -191,7 +216,9 @@ export function StringsExtractor({ strings, stats, fileName }: StringsExtractorP
           ) : (
             <Copy className="h-4 w-4" aria-hidden="true" />
           )}
-          <span>{copiedAll ? "Copied!" : `Copy All (${filteredStrings.length.toLocaleString()})`}</span>
+          <span>
+            {copiedAll ? "Copied!" : `Copy All (${filteredStrings.length.toLocaleString()})`}
+          </span>
         </button>
       </div>
 
@@ -207,9 +234,7 @@ export function StringsExtractor({ strings, stats, fileName }: StringsExtractorP
             <Search className="mb-3 h-8 w-8 text-zinc-600" aria-hidden="true" />
             <p className="text-sm text-zinc-400">No strings found</p>
             {searchQuery && (
-              <p className="mt-1 text-xs text-zinc-500">
-                Try a different search term or category
-              </p>
+              <p className="mt-1 text-xs text-zinc-500">Try a different search term or category</p>
             )}
           </div>
         ) : (
@@ -219,7 +244,10 @@ export function StringsExtractor({ strings, stats, fileName }: StringsExtractorP
                 key={`${category}-${index}-${str.slice(0, 50)}`}
                 className="group flex items-center gap-3 px-4 py-2 transition-colors hover:bg-zinc-800/50"
               >
-                <span className="min-w-[3rem] text-right font-mono text-xs text-zinc-600" aria-hidden="true">
+                <span
+                  className="min-w-[3rem] text-right font-mono text-xs text-zinc-600"
+                  aria-hidden="true"
+                >
                   {(index + 1).toLocaleString()}
                 </span>
                 <span
@@ -231,8 +259,12 @@ export function StringsExtractor({ strings, stats, fileName }: StringsExtractorP
                 <button
                   type="button"
                   onClick={() => handleCopyString(str, index)}
-                  aria-label={copiedIndex === index ? "Copied" : `Copy string: ${str.slice(0, 50)}${str.length > 50 ? "..." : ""}`}
-                  className="flex-shrink-0 rounded p-1 opacity-0 transition-opacity hover:bg-zinc-700 group-hover:opacity-100 focus:opacity-100"
+                  aria-label={
+                    copiedIndex === index
+                      ? "Copied"
+                      : `Copy string: ${str.slice(0, 50)}${str.length > 50 ? "..." : ""}`
+                  }
+                  className="flex-shrink-0 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-zinc-700 focus:opacity-100"
                 >
                   {copiedIndex === index ? (
                     <Check className="h-4 w-4 text-green-400" aria-hidden="true" />
@@ -249,7 +281,8 @@ export function StringsExtractor({ strings, stats, fileName }: StringsExtractorP
       {/* Results Count Footer */}
       {filteredStrings.length > 0 && (
         <p className="text-xs text-zinc-500">
-          Showing {filteredStrings.length.toLocaleString()} of {categoryStrings.length.toLocaleString()} strings
+          Showing {filteredStrings.length.toLocaleString()} of{" "}
+          {categoryStrings.length.toLocaleString()} strings
           {searchQuery && ` matching "${searchQuery}"`}
         </p>
       )}

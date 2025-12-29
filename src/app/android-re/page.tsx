@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { Smartphone, FileCode, Cpu, Terminal } from "lucide-react";
+import { Smartphone, FileCode, Cpu, Terminal, Package } from "lucide-react";
 import { TabButton } from "@/components/ui/TabButton";
 import {
   ApkUploader,
@@ -11,11 +11,12 @@ import {
   NativeUploader,
   NativeAnalysisViewer,
   StringsExtractor,
+  ManifestViewer,
 } from "@/features/android-re/components";
 import { useTabAnalysis } from "@/features/android-re/hooks";
 import type { FileNode } from "@/lib/android-re";
 
-type Tab = "decompile" | "native" | "strings";
+type Tab = "decompile" | "native" | "strings" | "manifest";
 
 // Result types for useTabAnalysis
 interface NativeResult {
@@ -32,6 +33,50 @@ interface NativeResult {
 interface StringsResult {
   strings: { resources: string[]; dex: string[]; native: string[] };
   stats: { total: number; resourceCount: number; dexCount: number; nativeCount: number };
+}
+
+interface ManifestResult {
+  manifest: {
+    package: string;
+    versionCode: string;
+    versionName: string;
+    minSdk: string;
+    targetSdk: string;
+    permissions: Array<{ name: string; protectionLevel?: string }>;
+    activities: Array<{
+      name: string;
+      exported: boolean;
+      intentFilters: Array<{ action?: string; category?: string; data?: string }>;
+      permission?: string;
+    }>;
+    services: Array<{ name: string; exported: boolean; permission?: string }>;
+    receivers: Array<{
+      name: string;
+      exported: boolean;
+      intentFilters: Array<{ action?: string }>;
+    }>;
+    providers: Array<{
+      name: string;
+      exported: boolean;
+      authorities?: string;
+      permission?: string;
+    }>;
+    securityIssues: Array<{
+      severity: "high" | "medium" | "low";
+      issue: string;
+      component?: string;
+    }>;
+    debuggable: boolean;
+    allowBackup: boolean;
+  };
+  stats: {
+    permissionCount: number;
+    activityCount: number;
+    serviceCount: number;
+    receiverCount: number;
+    providerCount: number;
+    securityIssueCount: number;
+  };
 }
 
 export default function AndroidRePage() {
@@ -76,6 +121,20 @@ export default function AndroidRePage() {
   const strings = useTabAnalysis<StringsResult>({
     endpoint: "/api/android-re/strings",
     extractResult: stringsExtractResult,
+  });
+
+  // === Manifest Tab - Uses useTabAnalysis hook ===
+  const manifestExtractResult = useCallback(
+    (data: Record<string, unknown>): ManifestResult => ({
+      manifest: data.manifest as ManifestResult["manifest"],
+      stats: data.stats as ManifestResult["stats"],
+    }),
+    []
+  );
+
+  const manifest = useTabAnalysis<ManifestResult>({
+    endpoint: "/api/android-re/manifest",
+    extractResult: manifestExtractResult,
   });
 
   // Cleanup decompile abort controllers on unmount
@@ -206,6 +265,12 @@ export default function AndroidRePage() {
     return undefined;
   }, [strings.stage]);
 
+  const manifestProgressMessage = useMemo(() => {
+    if (manifest.stage === "uploading") return "Uploading APK...";
+    if (manifest.stage === "analyzing") return "Parsing AndroidManifest.xml...";
+    return undefined;
+  }, [manifest.stage]);
+
   // === Render Tabs ===
   const renderDecompileTab = () => (
     <AnalysisTab
@@ -318,6 +383,43 @@ export default function AndroidRePage() {
     />
   );
 
+  const renderManifestTab = () => (
+    <AnalysisTab
+      uploader={
+        <ApkUploader
+          onFileSelect={manifest.handleFileSelect}
+          onClear={manifest.handleFileClear}
+          isLoading={manifest.isProcessing}
+        />
+      }
+      actionButton={{
+        label: "Parse Manifest",
+        icon: Package,
+        onClick: manifest.handleAnalyze,
+      }}
+      stage={manifest.stage}
+      progressMessage={manifestProgressMessage}
+      error={manifest.error}
+      resultViewer={
+        manifest.result && (
+          <ManifestViewer
+            manifest={manifest.result.manifest}
+            stats={manifest.result.stats}
+            fileName={manifest.file?.name}
+          />
+        )
+      }
+      emptyState={{
+        icon: Package,
+        title: "Manifest Parser",
+        description:
+          "Parse AndroidManifest.xml to view permissions, components, and security analysis.",
+      }}
+      hasFile={!!manifest.file}
+      hasResult={!!manifest.result}
+    />
+  );
+
   return (
     <div className="flex min-h-screen flex-col bg-zinc-950 font-sans text-zinc-100">
       <main className="flex flex-1 flex-col gap-6 p-6">
@@ -363,6 +465,12 @@ export default function AndroidRePage() {
               isActive={activeTab === "strings"}
               onClick={() => setActiveTab("strings")}
             />
+            <TabButton
+              label="Manifest"
+              icon={Package}
+              isActive={activeTab === "manifest"}
+              onClick={() => setActiveTab("manifest")}
+            />
           </div>
 
           {/* Tab Content */}
@@ -370,6 +478,7 @@ export default function AndroidRePage() {
             {activeTab === "decompile" && renderDecompileTab()}
             {activeTab === "native" && renderNativeTab()}
             {activeTab === "strings" && renderStringsTab()}
+            {activeTab === "manifest" && renderManifestTab()}
           </div>
         </div>
       </main>

@@ -204,7 +204,8 @@ function parseStringsXml(xmlContent: string): string[] {
   try {
     // Match <string name="...">value</string> patterns
     // Handles: simple text, CDATA sections, and escaped content
-    const stringPattern = /<string\s+name="[^"]*"[^>]*>([^<]*(?:<!\[CDATA\[[\s\S]*?\]\]>[^<]*)*)<\/string>/g;
+    const stringPattern =
+      /<string\s+name="[^"]*"[^>]*>([^<]*(?:<!\[CDATA\[[\s\S]*?\]\]>[^<]*)*)<\/string>/g;
     let match;
 
     while ((match = stringPattern.exec(xmlContent)) !== null) {
