@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Upload, Cpu, X } from "lucide-react";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -21,6 +21,7 @@ export function NativeUploader({
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -71,6 +72,8 @@ export function NativeUploader({
       if (file) {
         validateAndSelectFile(file);
       }
+      // Reset input to allow re-selecting same file
+      e.target.value = "";
     },
     [validateAndSelectFile]
   );
@@ -78,6 +81,10 @@ export function NativeUploader({
   const clearSelection = useCallback(() => {
     setSelectedFile(null);
     setError(null);
+    // Reset file input to allow re-selecting same file
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
     onClear?.();
   }, [onClear]);
 
@@ -92,7 +99,9 @@ export function NativeUploader({
           </div>
           {!isLoading && (
             <button
+              type="button"
               onClick={clearSelection}
+              aria-label="Clear selected file"
               className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
             >
               <X className="h-4 w-4" />
@@ -117,6 +126,7 @@ export function NativeUploader({
             </p>
             <p className="text-xs text-zinc-500">Supports: {acceptedTypes.join(", ")}</p>
             <input
+              ref={inputRef}
               type="file"
               className="hidden"
               accept={acceptedTypes.join(",")}

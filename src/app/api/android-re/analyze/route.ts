@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir, rm } from "fs/promises";
+import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { analyzeNativeLib, checkGhidraAvailable } from "@/lib/ghidra-wrapper";
+import { UPLOAD_DIR, OUTPUT_DIR, sanitizeFilename, cleanupDirs } from "@/lib/android-re";
 
 // Max file size: 50MB for native libs
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const VALID_EXTENSIONS = [".so", ".dll", ".exe", ".dylib", ".o"];
-const UPLOAD_DIR = "/tmp/android-re-uploads";
-const OUTPUT_DIR = "/tmp/android-re-output";
 
 /**
  * GET /api/android-re/analyze
@@ -47,10 +46,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid form data" }, { status: 400 });
   }
 
-  const file = formData.get("file") as File | null;
-  if (!file) {
+  const fileField = formData.get("file");
+  if (!fileField || !(fileField instanceof File)) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }
+  const file = fileField;
 
   // Validate file extension
   const fileName = file.name.toLowerCase();
@@ -71,8 +71,14 @@ export async function POST(request: NextRequest) {
   }
 
   // Parse options from form data
-  const maxCpuStr = formData.get("maxCpu") as string | null;
-  const maxCpu = maxCpuStr ? parseInt(maxCpuStr, 10) : undefined;
+  const maxCpuStr = formData.get("maxCpu");
+  let maxCpu: number | undefined;
+  if (typeof maxCpuStr === "string" && maxCpuStr.trim()) {
+    const parsed = parseInt(maxCpuStr, 10);
+    if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 32) {
+      maxCpu = parsed;
+    }
+  }
 
   // Create unique job ID
   const jobId = `ghidra-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -84,10 +90,11 @@ export async function POST(request: NextRequest) {
     await mkdir(uploadPath, { recursive: true });
     await mkdir(outputPath, { recursive: true });
 
-    // Save uploaded file
+    // Save uploaded file with sanitized name
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const inputFilePath = join(uploadPath, file.name);
+    const safeFilename = sanitizeFilename(file.name);
+    const inputFilePath = join(uploadPath, safeFilename);
     await writeFile(inputFilePath, buffer);
 
     // Run Ghidra analysis
@@ -98,8 +105,7 @@ export async function POST(request: NextRequest) {
 
     if (!result.success) {
       // Cleanup on failure
-      await rm(uploadPath, { recursive: true, force: true }).catch(() => {});
-      await rm(outputPath, { recursive: true, force: true }).catch(() => {});
+      await cleanupDirs(uploadPath, outputPath);
 
       return NextResponse.json({ error: result.error, hint: result.hint }, { status: 500 });
     }
@@ -108,19 +114,17 @@ export async function POST(request: NextRequest) {
     const analysisData = parseGhidraOutput(result.data || "");
 
     // Cleanup upload directory
-    await rm(uploadPath, { recursive: true, force: true }).catch(() => {});
+    await cleanupDirs(uploadPath);
 
     return NextResponse.json({
       success: true,
       jobId,
-      outputPath,
       analysis: analysisData,
       rawOutput: result.data,
     });
   } catch (error) {
     // Cleanup on error
-    await rm(uploadPath, { recursive: true, force: true }).catch(() => {});
-    await rm(outputPath, { recursive: true, force: true }).catch(() => {});
+    await cleanupDirs(uploadPath, outputPath);
 
     console.error("Ghidra analysis error:", error);
     return NextResponse.json(

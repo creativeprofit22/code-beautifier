@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Smartphone, FileCode, Cpu, Terminal } from "lucide-react";
 import { TabButton } from "@/components/ui/TabButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -42,6 +42,20 @@ export default function AndroidRePage() {
   } | null>(null);
   const [nativeRawOutput, setNativeRawOutput] = useState<string | undefined>();
 
+  // Abort controllers for cancelling in-flight requests
+  const decompileAbortRef = useRef<AbortController | null>(null);
+  const nativeAbortRef = useRef<AbortController | null>(null);
+  const fileLoadAbortRef = useRef<AbortController | null>(null);
+
+  // Cleanup abort controllers on unmount
+  useEffect(() => {
+    return () => {
+      decompileAbortRef.current?.abort();
+      nativeAbortRef.current?.abort();
+      fileLoadAbortRef.current?.abort();
+    };
+  }, []);
+
   /** Reset decompilation results to initial state */
   const resetDecompileResults = useCallback(() => {
     setAnalysisStage("idle");
@@ -68,6 +82,10 @@ export default function AndroidRePage() {
   const handleDecompile = useCallback(async () => {
     if (!selectedFile || analysisStage !== "idle") return;
 
+    // Cancel any in-flight request
+    decompileAbortRef.current?.abort();
+    decompileAbortRef.current = new AbortController();
+
     try {
       setAnalysisStage("uploading");
       setErrorMessage(undefined);
@@ -81,6 +99,7 @@ export default function AndroidRePage() {
       const response = await fetch("/api/android-re/decompile", {
         method: "POST",
         body: formData,
+        signal: decompileAbortRef.current.signal,
       });
 
       setAnalysisStage("decompiling");
@@ -96,6 +115,8 @@ export default function AndroidRePage() {
       setFileTree(data.fileTree || []);
       setAnalysisStage("complete");
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === "AbortError") return;
       setErrorMessage(err instanceof Error ? err.message : "Decompilation failed");
       setAnalysisStage("error");
     }
@@ -105,15 +126,18 @@ export default function AndroidRePage() {
     async (path: string) => {
       if (!jobId) return;
 
-      // Store the path we're loading to check for staleness
-      const requestedPath = path;
+      // Cancel any in-flight file load request
+      fileLoadAbortRef.current?.abort();
+      fileLoadAbortRef.current = new AbortController();
+
       setSelectedFilePath(path);
       setIsLoadingFile(true);
       setFileContent(undefined);
 
       try {
         const response = await fetch(
-          `/api/android-re/file?jobId=${encodeURIComponent(jobId)}&path=${encodeURIComponent(path)}`
+          `/api/android-re/file?jobId=${encodeURIComponent(jobId)}&path=${encodeURIComponent(path)}`,
+          { signal: fileLoadAbortRef.current.signal }
         );
 
         const data = await response.json();
@@ -122,24 +146,14 @@ export default function AndroidRePage() {
           throw new Error(data.error || "Failed to load file");
         }
 
-        // Only update if this is still the selected file (prevents race condition)
-        setSelectedFilePath((current) => {
-          if (current === requestedPath) {
-            setFileContent(data.content);
-          }
-          return current;
-        });
+        setFileContent(data.content);
       } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === "AbortError") return;
         console.error("Failed to load file:", err);
-        // Only show error if still on same file
-        setSelectedFilePath((current) => {
-          if (current === requestedPath) {
-            setFileContent(
-              `// Error loading file: ${err instanceof Error ? err.message : "Unknown error"}`
-            );
-          }
-          return current;
-        });
+        setFileContent(
+          `// Error loading file: ${err instanceof Error ? err.message : "Unknown error"}`
+        );
       } finally {
         setIsLoadingFile(false);
       }
@@ -174,6 +188,10 @@ export default function AndroidRePage() {
   const handleNativeAnalyze = useCallback(async () => {
     if (!nativeFile || nativeStage !== "idle") return;
 
+    // Cancel any in-flight request
+    nativeAbortRef.current?.abort();
+    nativeAbortRef.current = new AbortController();
+
     try {
       setNativeStage("uploading");
       setNativeError(undefined);
@@ -184,6 +202,7 @@ export default function AndroidRePage() {
       const response = await fetch("/api/android-re/analyze", {
         method: "POST",
         body: formData,
+        signal: nativeAbortRef.current.signal,
       });
 
       setNativeStage("analyzing");
@@ -198,6 +217,8 @@ export default function AndroidRePage() {
       setNativeRawOutput(data.rawOutput);
       setNativeStage("complete");
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === "AbortError") return;
       setNativeError(err instanceof Error ? err.message : "Analysis failed");
       setNativeStage("error");
     }

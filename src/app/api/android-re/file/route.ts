@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile, access } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import { join, resolve } from "path";
-
-const OUTPUT_DIR = "/tmp/android-re-output";
+import { OUTPUT_DIR, JADX_JOB_ID_REGEX, GHIDRA_JOB_ID_REGEX } from "@/lib/android-re";
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit for reading
 
 // Allowed file extensions for reading
 const ALLOWED_EXTENSIONS = [
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Validate jobId format to prevent path traversal
-  if (!/^jadx-\d+-[a-z0-9]+$/.test(jobId) && !/^ghidra-\d+-[a-z0-9]+$/.test(jobId)) {
+  if (!JADX_JOB_ID_REGEX.test(jobId) && !GHIDRA_JOB_ID_REGEX.test(jobId)) {
     return NextResponse.json({ error: "Invalid jobId format" }, { status: 400 });
   }
 
@@ -56,8 +56,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid file path" }, { status: 400 });
   }
 
-  // Check file extension
-  const ext = filePath.substring(filePath.lastIndexOf(".")).toLowerCase();
+  // Check file extension - handle files without extensions
+  const dotIndex = filePath.lastIndexOf(".");
+  if (dotIndex === -1 || dotIndex === filePath.length - 1) {
+    return NextResponse.json({ error: "File must have a valid extension" }, { status: 400 });
+  }
+  const ext = filePath.substring(dotIndex).toLowerCase();
   if (!ALLOWED_EXTENSIONS.includes(ext)) {
     return NextResponse.json(
       { error: `File type not supported. Allowed: ${ALLOWED_EXTENSIONS.join(", ")}` },
@@ -65,28 +69,51 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Build full path (check both sources/ and root)
+  // Build candidate paths and resolve them BEFORE checking existence
   const jobOutputDir = join(OUTPUT_DIR, jobId);
-  const sourcesPath = join(jobOutputDir, "sources", filePath);
-  const directPath = join(jobOutputDir, filePath);
+  const sourcesPath = resolve(join(jobOutputDir, "sources", filePath));
+  const directPath = resolve(join(jobOutputDir, filePath));
 
-  let targetPath = sourcesPath;
+  // Security: Verify resolved paths are within OUTPUT_DIR BEFORE any file operations
+  const resolvedOutputDir = resolve(OUTPUT_DIR);
+  if (!sourcesPath.startsWith(resolvedOutputDir) || !directPath.startsWith(resolvedOutputDir)) {
+    return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  }
+
+  // Now check which path exists and get file info
+  let targetPath: string | null = null;
+  let fileStats: Awaited<ReturnType<typeof stat>> | null = null;
 
   try {
-    await access(sourcesPath);
+    fileStats = await stat(sourcesPath);
+    if (fileStats.isFile()) {
+      targetPath = sourcesPath;
+    }
   } catch {
+    // Try direct path
+  }
+
+  if (!targetPath) {
     try {
-      await access(directPath);
-      targetPath = directPath;
+      fileStats = await stat(directPath);
+      if (fileStats.isFile()) {
+        targetPath = directPath;
+      }
     } catch {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
   }
 
-  // Ensure the resolved path is still within the output directory
-  const resolvedPath = resolve(targetPath);
-  if (!resolvedPath.startsWith(OUTPUT_DIR)) {
-    return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  if (!targetPath || !fileStats) {
+    return NextResponse.json({ error: "File not found" }, { status: 404 });
+  }
+
+  // Check file size before reading
+  if (fileStats.size > MAX_FILE_SIZE) {
+    return NextResponse.json(
+      { error: `File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB` },
+      { status: 400 }
+    );
   }
 
   try {
@@ -98,10 +125,11 @@ export async function GET(request: NextRequest) {
       size: content.length,
     });
   } catch (error) {
+    // Handle encoding errors gracefully
+    if (error instanceof Error && error.message.includes("encoding")) {
+      return NextResponse.json({ error: "File is not valid UTF-8 text" }, { status: 400 });
+    }
     console.error("File read error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to read file" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to read file" }, { status: 500 });
   }
 }

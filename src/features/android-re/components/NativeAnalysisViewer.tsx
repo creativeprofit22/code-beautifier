@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, memo } from "react";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -33,7 +33,7 @@ interface StatCardProps {
   accent?: boolean;
 }
 
-function StatCard({ icon, label, value, accent = false }: StatCardProps) {
+const StatCard = memo(function StatCard({ icon, label, value, accent = false }: StatCardProps) {
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
       <div className="flex items-center gap-3">
@@ -45,10 +45,16 @@ function StatCard({ icon, label, value, accent = false }: StatCardProps) {
       </div>
     </div>
   );
-}
+});
 
 export function NativeAnalysisViewer({ analysis, rawOutput, fileName }: NativeAnalysisViewerProps) {
   const [isRawExpanded, setIsRawExpanded] = useState(false);
+
+  // Memoize line count to avoid recalculating on every render
+  const lineCount = useMemo(() => {
+    if (!rawOutput || !rawOutput.trim()) return 0;
+    return rawOutput.split("\n").length;
+  }, [rawOutput]);
 
   return (
     <div className="space-y-6">
@@ -96,7 +102,10 @@ export function NativeAnalysisViewer({ analysis, rawOutput, fileName }: NativeAn
       {rawOutput && (
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/50">
           <button
+            type="button"
             onClick={() => setIsRawExpanded(!isRawExpanded)}
+            aria-expanded={isRawExpanded}
+            aria-controls="raw-output-section"
             className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-zinc-800/50"
           >
             {isRawExpanded ? (
@@ -107,12 +116,12 @@ export function NativeAnalysisViewer({ analysis, rawOutput, fileName }: NativeAn
             <Terminal className="h-4 w-4 text-zinc-500" />
             <span className="text-sm font-medium text-zinc-300">Raw Output</span>
             <span className="ml-auto text-xs text-zinc-600">
-              {rawOutput.split("\n").length} lines
+              {lineCount} {lineCount === 1 ? "line" : "lines"}
             </span>
           </button>
 
           {isRawExpanded && (
-            <div className="border-t border-zinc-800">
+            <div id="raw-output-section" className="border-t border-zinc-800">
               <pre className="max-h-96 overflow-auto p-4 text-xs text-zinc-400">
                 <code>{rawOutput}</code>
               </pre>

@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir, readdir, stat, rm } from "fs/promises";
+import { writeFile, mkdir, readdir, stat } from "fs/promises";
 import { join } from "path";
-import { existsSync } from "fs";
 import { decompileApk, checkJadxAvailable, getJadxVersion } from "@/lib/jadx-wrapper";
+import {
+  UPLOAD_DIR,
+  OUTPUT_DIR,
+  sanitizeFilename,
+  pathExists,
+  cleanupDirs,
+  type FileNode,
+} from "@/lib/android-re";
 
 // Max file size: 100MB
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const VALID_EXTENSIONS = [".apk", ".dex", ".aar"];
-const UPLOAD_DIR = "/tmp/android-re-uploads";
-const OUTPUT_DIR = "/tmp/android-re-output";
-
-interface FileNode {
-  name: string;
-  type: "file" | "folder";
-  path: string;
-  children?: FileNode[];
-}
 
 /**
  * Recursively build a file tree from a directory.
@@ -96,10 +94,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid form data" }, { status: 400 });
   }
 
-  const file = formData.get("file") as File | null;
-  if (!file) {
+  const fileField = formData.get("file");
+  if (!fileField || !(fileField instanceof File)) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }
+  const file = fileField;
 
   // Validate file extension
   const fileName = file.name.toLowerCase();
@@ -123,8 +122,14 @@ export async function POST(request: NextRequest) {
   const showBadCode = formData.get("showBadCode") === "true";
   const noRes = formData.get("noRes") === "true";
   const deobf = formData.get("deobf") === "true";
-  const threadsCountStr = formData.get("threadsCount") as string | null;
-  const threadsCount = threadsCountStr ? parseInt(threadsCountStr, 10) : undefined;
+  const threadsCountStr = formData.get("threadsCount");
+  let threadsCount: number | undefined;
+  if (typeof threadsCountStr === "string" && threadsCountStr.trim()) {
+    const parsed = parseInt(threadsCountStr, 10);
+    if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 32) {
+      threadsCount = parsed;
+    }
+  }
 
   // Create unique job ID
   const jobId = `jadx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -136,10 +141,11 @@ export async function POST(request: NextRequest) {
     await mkdir(uploadPath, { recursive: true });
     await mkdir(outputPath, { recursive: true });
 
-    // Save uploaded file
+    // Save uploaded file with sanitized name
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const inputFilePath = join(uploadPath, file.name);
+    const safeFilename = sanitizeFilename(file.name);
+    const inputFilePath = join(uploadPath, safeFilename);
     await writeFile(inputFilePath, buffer);
 
     // Run JADX decompilation
@@ -153,17 +159,16 @@ export async function POST(request: NextRequest) {
 
     if (!result.success) {
       // Cleanup on failure
-      await rm(uploadPath, { recursive: true, force: true }).catch(() => {});
-      await rm(outputPath, { recursive: true, force: true }).catch(() => {});
+      await cleanupDirs(uploadPath, outputPath);
 
       return NextResponse.json({ error: result.error, hint: result.hint }, { status: 500 });
     }
 
     // Build file tree from output
     let fileTree: FileNode[] = [];
-    if (existsSync(outputPath)) {
+    if (await pathExists(outputPath)) {
       const sourcesDir = join(outputPath, "sources");
-      const treeRoot = existsSync(sourcesDir) ? sourcesDir : outputPath;
+      const treeRoot = (await pathExists(sourcesDir)) ? sourcesDir : outputPath;
       fileTree = await buildFileTree(treeRoot);
     }
 
@@ -171,20 +176,18 @@ export async function POST(request: NextRequest) {
     const stats = await stat(outputPath).catch(() => null);
 
     // Cleanup upload (keep output for file reading)
-    await rm(uploadPath, { recursive: true, force: true }).catch(() => {});
+    await cleanupDirs(uploadPath);
 
     return NextResponse.json({
       success: true,
       jobId,
-      outputPath,
       fileTree,
       message: result.data,
       stats: stats ? { modifiedTime: stats.mtime.toISOString() } : undefined,
     });
   } catch (error) {
     // Cleanup on error
-    await rm(uploadPath, { recursive: true, force: true }).catch(() => {});
-    await rm(outputPath, { recursive: true, force: true }).catch(() => {});
+    await cleanupDirs(uploadPath, outputPath);
 
     console.error("Decompile error:", error);
     return NextResponse.json(
