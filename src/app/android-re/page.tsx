@@ -9,16 +9,12 @@ import {
   AnalysisProgress,
   AnalysisStage,
   DecompiledViewer,
+  NativeUploader,
+  NativeAnalysisViewer,
 } from "@/features/android-re/components";
+import type { FileNode } from "@/lib/android-re";
 
 type Tab = "decompile" | "native" | "strings";
-
-interface FileNode {
-  name: string;
-  type: "file" | "folder";
-  path: string;
-  children?: FileNode[];
-}
 
 export default function AndroidRePage() {
   const [activeTab, setActiveTab] = useState<Tab>("decompile");
@@ -33,26 +29,41 @@ export default function AndroidRePage() {
   const [fileContent, setFileContent] = useState<string | undefined>();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
 
-  const handleFileSelect = useCallback((file: File) => {
-    setSelectedFile(file);
+  // Native analysis state
+  const [nativeFile, setNativeFile] = useState<File | null>(null);
+  const [nativeStage, setNativeStage] = useState<AnalysisStage>("idle");
+  const [nativeError, setNativeError] = useState<string | undefined>();
+  const [nativeAnalysis, setNativeAnalysis] = useState<{
+    importedFunctions: number;
+    exportedFunctions: number;
+    strings: number;
+    architecture?: string;
+    format?: string;
+  } | null>(null);
+  const [nativeRawOutput, setNativeRawOutput] = useState<string | undefined>();
+
+  /** Reset decompilation results to initial state */
+  const resetDecompileResults = useCallback(() => {
     setAnalysisStage("idle");
     setErrorMessage(undefined);
-    // Reset previous results
     setJobId(null);
     setFileTree([]);
     setSelectedFilePath(undefined);
     setFileContent(undefined);
   }, []);
 
+  const handleFileSelect = useCallback(
+    (file: File) => {
+      setSelectedFile(file);
+      resetDecompileResults();
+    },
+    [resetDecompileResults]
+  );
+
   const handleFileClear = useCallback(() => {
     setSelectedFile(null);
-    setAnalysisStage("idle");
-    setErrorMessage(undefined);
-    setJobId(null);
-    setFileTree([]);
-    setSelectedFilePath(undefined);
-    setFileContent(undefined);
-  }, []);
+    resetDecompileResults();
+  }, [resetDecompileResults]);
 
   const handleDecompile = useCallback(async () => {
     if (!selectedFile || analysisStage !== "idle") return;
@@ -92,8 +103,10 @@ export default function AndroidRePage() {
 
   const handleTreeFileSelect = useCallback(
     async (path: string) => {
-      if (!jobId || isLoadingFile) return;
+      if (!jobId) return;
 
+      // Store the path we're loading to check for staleness
+      const requestedPath = path;
       setSelectedFilePath(path);
       setIsLoadingFile(true);
       setFileContent(undefined);
@@ -109,21 +122,89 @@ export default function AndroidRePage() {
           throw new Error(data.error || "Failed to load file");
         }
 
-        setFileContent(data.content);
+        // Only update if this is still the selected file (prevents race condition)
+        setSelectedFilePath((current) => {
+          if (current === requestedPath) {
+            setFileContent(data.content);
+          }
+          return current;
+        });
       } catch (err) {
         console.error("Failed to load file:", err);
-        setFileContent(
-          `// Error loading file: ${err instanceof Error ? err.message : "Unknown error"}`
-        );
+        // Only show error if still on same file
+        setSelectedFilePath((current) => {
+          if (current === requestedPath) {
+            setFileContent(
+              `// Error loading file: ${err instanceof Error ? err.message : "Unknown error"}`
+            );
+          }
+          return current;
+        });
       } finally {
         setIsLoadingFile(false);
       }
     },
-    [jobId, isLoadingFile]
+    [jobId]
   );
 
   const isProcessing =
     analysisStage !== "idle" && analysisStage !== "complete" && analysisStage !== "error";
+
+  // Native analysis handlers
+  const resetNativeResults = useCallback(() => {
+    setNativeStage("idle");
+    setNativeError(undefined);
+    setNativeAnalysis(null);
+    setNativeRawOutput(undefined);
+  }, []);
+
+  const handleNativeFileSelect = useCallback(
+    (file: File) => {
+      setNativeFile(file);
+      resetNativeResults();
+    },
+    [resetNativeResults]
+  );
+
+  const handleNativeFileClear = useCallback(() => {
+    setNativeFile(null);
+    resetNativeResults();
+  }, [resetNativeResults]);
+
+  const handleNativeAnalyze = useCallback(async () => {
+    if (!nativeFile || nativeStage !== "idle") return;
+
+    try {
+      setNativeStage("uploading");
+      setNativeError(undefined);
+
+      const formData = new FormData();
+      formData.append("file", nativeFile);
+
+      const response = await fetch("/api/android-re/analyze", {
+        method: "POST",
+        body: formData,
+      });
+
+      setNativeStage("analyzing");
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Analysis failed");
+      }
+
+      setNativeAnalysis(data.analysis);
+      setNativeRawOutput(data.rawOutput);
+      setNativeStage("complete");
+    } catch (err) {
+      setNativeError(err instanceof Error ? err.message : "Analysis failed");
+      setNativeStage("error");
+    }
+  }, [nativeFile, nativeStage]);
+
+  const isNativeProcessing =
+    nativeStage !== "idle" && nativeStage !== "complete" && nativeStage !== "error";
 
   const renderDecompileTab = () => (
     <div className="flex flex-col gap-6">
@@ -178,11 +259,51 @@ export default function AndroidRePage() {
 
   const renderNativeTab = () => (
     <div className="flex flex-col gap-6">
-      <EmptyState
-        icon={Cpu}
-        title="Native Library Analysis"
-        description="Upload a native library (.so file) or an APK to analyze native code with Ghidra headless."
+      <NativeUploader
+        onFileSelect={handleNativeFileSelect}
+        onClear={handleNativeFileClear}
+        isLoading={isNativeProcessing}
       />
+
+      {nativeFile && nativeStage === "idle" && (
+        <button
+          onClick={handleNativeAnalyze}
+          className="flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition-all hover:bg-violet-500"
+        >
+          <Cpu className="h-4 w-4" />
+          <span>Analyze with Ghidra</span>
+        </button>
+      )}
+
+      {nativeStage !== "idle" && (
+        <AnalysisProgress
+          stage={nativeStage}
+          message={
+            nativeStage === "uploading"
+              ? "Uploading native library..."
+              : nativeStage === "analyzing"
+                ? "Analyzing with Ghidra headless..."
+                : undefined
+          }
+          error={nativeError}
+        />
+      )}
+
+      {nativeStage === "complete" && nativeAnalysis && (
+        <NativeAnalysisViewer
+          analysis={nativeAnalysis}
+          rawOutput={nativeRawOutput}
+          fileName={nativeFile?.name}
+        />
+      )}
+
+      {!nativeFile && (
+        <EmptyState
+          icon={Cpu}
+          title="Ready to analyze"
+          description="Upload a native library (.so, .dll, .exe, .dylib, .o) to analyze it with Ghidra headless."
+        />
+      )}
     </div>
   );
 
